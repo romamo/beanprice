@@ -15,8 +15,9 @@ import csv
 from collections import OrderedDict
 import datetime
 from decimal import Decimal
+import io
 
-import requests
+from curl_cffi import requests
 
 from beanprice import source
 
@@ -66,18 +67,19 @@ def parse_tsp_csv(response: requests.models.Response) -> OrderedDict:
 
     data = OrderedDict()
 
-    text = response.iter_lines(decode_unicode=True)
+    text = io.StringIO(response.text)
 
     reader = csv.DictReader(text, dialect="tsp")
 
+
     for row in reader:
-        # Date from TSP looks like "July 30. 2020"
-        # There is indeed a period after the day of month.
-        date = datetime.datetime.strptime(row["Date"], "%b %d. %Y")
+        if not row["Date"]:
+            continue
+        # Date from TSP looks like "2020-02-28"
+        date = datetime.datetime.strptime(row["Date"], "%Y-%m-%d")
         date = date.replace(hour=16, tzinfo=TIMEZONE)
         names = [
             "L Income",
-            "L 2025",
             "L 2030",
             "L 2035",
             "L 2040",
@@ -105,7 +107,7 @@ def parse_response(response: requests.models.Response) -> OrderedDict:
     Raises:
       TSPError: If there is an error in the response.
     """
-    if response.status_code != requests.codes.ok:
+    if not response.ok:
         raise TSPError("Error from TSP Parsing Status {}".format(response.status_code))
 
     return parse_tsp_csv(response)
@@ -130,7 +132,7 @@ class Source(source.Source):
                 )
             )
 
-        url = "https://secure.tsp.gov/components/CORS/getSharePricesRaw.html"
+        url = "https://www.tsp.gov/data/fund-price-history.csv"
         payload = {
             # Grabbing the last fourteen days of data in event the markets were closed.
             "startdate": (time - datetime.timedelta(days=14)).strftime("%Y%m%d"),
@@ -140,7 +142,7 @@ class Source(source.Source):
             "InvFunds": "1",
         }
 
-        response = requests.get(url, params=payload)
+        response = requests.get(url, params=payload, impersonate="chrome")
         result = parse_response(response)
         trade_day = next(iter(result.items()))
         prices = trade_day[1]
