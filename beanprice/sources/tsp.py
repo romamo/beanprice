@@ -28,20 +28,21 @@ TIMEZONE = datetime.timezone(datetime.timedelta(hours=-4), "America/New_York")
 
 TSP_FUND_NAMES = [
     "LInco",  # 0
-    "L2025",  # 1
-    "L2030",  # 2
-    "L2035",  # 3
-    "L2040",  # 4
-    "L2045",  # 5
-    "L2050",  # 6
-    "L2055",  # 7
-    "L2060",  # 8
-    "L2065",  # 9
-    "GFund",  # 10
-    "FFund",  # 11
-    "CFund",  # 12
-    "SFund",  # 13
-    "IFund",  # 14
+    "L2030",  # 1
+    "L2035",  # 2
+    "L2040",  # 3
+    "L2045",  # 4
+    "L2050",  # 5
+    "L2055",  # 6
+    "L2060",  # 7
+    "L2065",  # 8
+    "L2070",  # 9
+    "L2075",  # 10
+    "GFund",  # 11
+    "FFund",  # 12
+    "CFund",  # 13
+    "SFund",  # 14
+    "IFund",  # 15
 ]
 
 csv.register_dialect(
@@ -88,6 +89,8 @@ def parse_tsp_csv(response: requests.models.Response) -> OrderedDict:
             "L 2055",
             "L 2060",
             "L 2065",
+            "L 2070",
+            "L 2075",
             "G Fund",
             "F Fund",
             "C Fund",
