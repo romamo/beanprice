@@ -18,6 +18,7 @@ timestamps, but the timezone of the particular market is included in the output.
 __copyright__ = "Copyright (C) 2015-2020  Martin Blais"
 __license__ = "GNU GPLv2"
 
+import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -93,6 +94,7 @@ def get_price_series(
         "interval": "1d",
     }
     payload.update(_DEFAULT_PARAMS)
+    logging.debug("Yahoo get_price_series URL: %s, params: %s", url, payload)
     response = session.get(url, params=payload)  # Use shared session
     result = parse_response(response)
 
@@ -157,6 +159,7 @@ class Source(source.Source):
             "crumb": self.crumb,  # Use the session’s crumb
         }
         payload.update(_DEFAULT_PARAMS)
+        logging.debug("Yahoo get_latest_price URL: %s, params: %s", url, payload)
         response = self.session.get(url, params=payload)  # Use shared session
 
         try:
