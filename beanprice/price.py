@@ -75,6 +75,10 @@ UNKNOWN_CURRENCY = "?"
 # A cache for the prices.
 _CACHE = None
 
+# Sentinel stored in the cache for fetches that returned no value or whose
+# result was clobbered.  Avoids repeating pointless network requests.
+_CACHE_SKIP = "__SKIP__"
+
 # Expiration for latest prices in the cache.
 DEFAULT_EXPIRATION = datetime.timedelta(seconds=30 * 60)  # 30 mins.
 
@@ -484,7 +488,7 @@ def get_price_jobs_up_to_date(
             key for key in required_prices
             if key[0] not in price_dates_by_pair.get((key[1], key[2]), set())
         ]
-        logging.debug("fill_gaps: %d missing price(s) to fetch", len(required_prices))
+        logging.debug("fill_gaps: %d date(s) missing from price file", len(required_prices))
 
     jobs = []
     # Build up the list of jobs to fetch prices for.
@@ -495,6 +499,14 @@ def get_price_jobs_up_to_date(
             psources = [PriceSource(default_source, base, False)]
 
         jobs.append(DatedPrice(base, quote, date, psources))
+
+    if fill_gaps:
+        n_before = len(jobs)
+        jobs = [job for job in jobs if not is_price_cache_skip(job)]
+        n_skipped = n_before - len(jobs)
+        if n_skipped:
+            logging.debug("fill_gaps: %d job(s) skipped (cached as no-value/clobbered)", n_skipped)
+        logging.debug("fill_gaps: %d job(s) to fetch", len(jobs))
 
     return sorted(jobs)
 
@@ -539,12 +551,17 @@ def fetch_cached_price(source, symbol, date):
     else:
         # The cache is enabled and we have to compute the current/latest price.
         # Try to fetch from the cache but miss if the price is too old.
-        md5 = hashlib.md5()
-        md5.update(str((type(source).__module__, symbol, date)).encode("utf-8"))
-        key = md5.hexdigest()
+        key = _cache_key(source, symbol, date)
         timestamp_now = int(now().timestamp())
         try:
             timestamp_created, result_naive = _CACHE[key]
+
+            if (timestamp_now - timestamp_created) > _CACHE.expiration.total_seconds():
+                raise KeyError
+
+            # Sentinel: a previous fetch returned no value or was clobbered.
+            if result_naive is _CACHE_SKIP or result_naive == _CACHE_SKIP:
+                return None
 
             # Convert naive timezone to UTC, which is what the cache is always
             # assumed to store. (The reason for this is that timezones from
@@ -556,8 +573,6 @@ def fetch_cached_price(source, symbol, date):
             else:
                 result = result_naive
 
-            if (timestamp_now - timestamp_created) > _CACHE.expiration.total_seconds():
-                raise KeyError
         except KeyError:
             logging.info("Fetching: %s (time: %s)", symbol, time)
             try:
@@ -578,8 +593,9 @@ def fetch_cached_price(source, symbol, date):
             else:
                 result_naive = result
 
-            if result_naive is not None:
-                _CACHE[key] = (timestamp_now, result_naive)
+            # Cache both successful results and None (no-value sentinel) so
+            # future runs skip repeating pointless network requests.
+            _CACHE[key] = (timestamp_now, result_naive if result_naive is not None else _CACHE_SKIP)
     return result
 
 
@@ -619,6 +635,35 @@ def reset_cache():
             _CACHE.clear()
         _CACHE.close()
     _CACHE = None
+
+
+def _cache_key(source_module, symbol, date) -> str:
+    md5 = hashlib.md5()
+    md5.update(str((type(source_module).__module__, symbol, date)).encode("utf-8"))
+    return md5.hexdigest()
+
+
+def is_price_cache_skip(dprice: DatedPrice) -> bool:
+    """Return True if every source of this job is marked skip in the cache."""
+    if _CACHE is None:
+        return False
+    for psource in dprice.sources:
+        cached = _CACHE.get(_cache_key(psource.module, psource.symbol, dprice.date))
+        if cached is None or cached[1] != _CACHE_SKIP:
+            return False
+    return bool(dprice.sources)
+
+
+def mark_price_cache_skip(dprice: DatedPrice):
+    """Mark all sources of a price job as skip in the cache.
+
+    Called after a clobber so future runs don't re-fetch and re-clobber.
+    """
+    if _CACHE is None:
+        return
+    timestamp_now = int(now().timestamp())
+    for psource in dprice.sources:
+        _CACHE[_cache_key(psource.module, psource.symbol, dprice.date)] = (timestamp_now, _CACHE_SKIP)
 
 
 def fetch_price(dprice: DatedPrice, swap_inverted: bool = False) -> Optional[data.Price]:
@@ -1008,7 +1053,6 @@ def main():
             print(format_dated_price_str(dprice))
         return
 
-    # Pre-build existing prices lookup for per-entry clobber filtering.
     existing_prices = {}
     if not args.clobber:
         existing_prices = {
@@ -1016,20 +1060,18 @@ def main():
             for entry in entries
             if isinstance(entry, data.Price)
         }
-
-    output = (
-        codecs.getwriter("utf-8")(sys.stdout.buffer)
-        if hasattr(sys.stdout, "buffer")
-        else sys.stdout
-    )
+    output = (codecs.getwriter("utf-8")(sys.stdout.buffer)
+              if hasattr(sys.stdout, "buffer") else sys.stdout)
     eprinter = printer.EntryPrinter(dcontext)
-
     executor = futures.ThreadPoolExecutor(max_workers=args.workers)
     fetch_fn = functools.partial(fetch_price, swap_inverted=args.swap_inverted)
 
-    for entry in filter(None, executor.map(fetch_fn, jobs)):
+    for job, entry in zip(jobs, executor.map(fetch_fn, jobs)):
+        if entry is None:
+            continue
         if not args.clobber and (entry.date, entry.currency) in existing_prices:
             logging.info("Ignored to avoid clobber: %s %s", entry.date, entry.currency)
+            mark_price_cache_skip(job)
             continue
         output.write(eprinter(entry))
         output.flush()
