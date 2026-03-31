@@ -9,6 +9,14 @@ This used to be located within Beancount itself (at v2) under beancount.prices.
 This repo will contain all future updates to that script and to those price
 sources.
 
+## Changelog
+
+- Streaming output writes each fetched entry immediately, so interrupted runs keep already-written results
+- `--update-fill-gaps` can backfill missing dates across the full lifetime of each commodity
+- A Financial Times price source is available
+- Cache-skip handling avoids re-fetching missing or clobbered price data
+
+
 ## Documentation
 
 Some documentation is still part of Beancount. More about how to use this can be
@@ -149,6 +157,7 @@ mypy beanprice
 
 ## Copyright and License
 
+Copyright (C) 2026 Roman Medvedev
 Copyright (C) 2007-2020  Martin Blais.  All Rights Reserved.
 
 This code is distributed under the terms of the "GNU GPLv2 only".
