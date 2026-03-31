@@ -995,8 +995,9 @@ def process_args() -> Tuple[
                             DatedPrice(psources[0].symbol, currency, date, psources)
                         )
     elif args.update:
-        # Use Beancount input filename sources to create
-        # prices jobs up to present time.
+        # Load and merge all source files before generating jobs so that
+        # commodity directives and price history from every file are visible
+        # to the job-generation logic as a single unified ledger.
         for filename in args.sources:
             if not path.exists(filename) or not path.isfile(filename):
                 parser.error(
@@ -1007,13 +1008,15 @@ def process_args() -> Tuple[
             entries, errors, options_map = loader.load_file(filename, log_errors=sys.stderr)
             if dcontext is None:
                 dcontext = options_map["dcontext"]
+            all_entries.extend(entries)
+        if all_entries:
             if args.date is None:
                 latest_date = datetime.date.today()
             else:
                 latest_date = args.date
             jobs.extend(
                 get_price_jobs_up_to_date(
-                    entries,
+                    all_entries,
                     latest_date,
                     args.inactive,
                     args.undeclared,
@@ -1022,9 +1025,10 @@ def process_args() -> Tuple[
                     args.update_fill_gaps,
                 )
             )
-            all_entries.extend(entries)
     else:
-        # Interpret the arguments as Beancount input filenames.
+        # Load and merge all source files first, then generate jobs once
+        # against the unified entry list so that commodity directives defined
+        # in one file are visible when processing another.
         for filename in args.sources:
             if not path.exists(filename) or not path.isfile(filename):
                 parser.error(
@@ -1035,11 +1039,12 @@ def process_args() -> Tuple[
             entries, errors, options_map = loader.load_file(filename, log_errors=sys.stderr)
             if dcontext is None:
                 dcontext = options_map["dcontext"]
+            all_entries.extend(entries)
+        if all_entries:
             for date in dates:
                 jobs.extend(
-                    get_price_jobs_at_date(entries, date, args.inactive, args.undeclared)
+                    get_price_jobs_at_date(all_entries, date, args.inactive, args.undeclared)
                 )
-                all_entries.extend(entries)
 
     return args, jobs, data.sorted(all_entries), dcontext
 

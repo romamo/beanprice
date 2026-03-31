@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+---
+
+## [2.1.1] - 2026-03-31
+
+### Fixed
+- Merge all source files into a single in-memory ledger before generating price
+  jobs, so commodity directives and existing price history is visible across
+  files; eliminates duplicate jobs and missed cross-file declarations for both
+  the `--update` and plain-file paths.
+
 ### Added
 - Added Financial Times price source
 - Added Yahoo Finance index support
