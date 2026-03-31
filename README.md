@@ -11,6 +11,7 @@ sources.
 
 ## Changelog
 
+- **v2.1.1**: All source files are merged into a single ledger before price jobs are generated, fixing duplicate jobs and cross-file commodity directive visibility
 - Streaming output writes each fetched entry immediately, so interrupted runs keep already-written results
 - `--update-fill-gaps` can backfill missing dates across the full lifetime of each commodity
 - A Financial Times price source is available
