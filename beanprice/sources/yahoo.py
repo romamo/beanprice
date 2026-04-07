@@ -132,23 +132,28 @@ class Source(source.Source):
         # Using curl_cffi's requests to impersonate a Chrome browser
         # to avoid being blocked by Yahoo's bot detection.
         # See issue https://github.com/beancount/beanprice/issues/106 for more details.
-        self.session = requests.Session(impersonate="chrome")
+        self.session = requests.Session(impersonate="chrome120")
         self.session.headers.update(
             {
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) "
                         "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/121.0.0.0 Safari/537.36",
-            "Sec-Ch-Ua": '"Google Chrome";v="121", '
-                         '"Chromium";v="121", ";Not A Brand";v="99"',
+                        "Chrome/120.0.0.0 Safari/537.36",
+            "Sec-Ch-Ua": '"Google Chrome";v="120", '
+                         '"Chromium";v="120", ";Not A Brand";v="99"',
             "Sec-Ch-Ua-Platform": '"Linux"',
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
             }
         )
         # This populates the correct cookies in the session
         for attempt in range(3):
             try:
-                self.session.get("https://fc.yahoo.com")
+                logging.debug("Yahoo session init: getting fc.yahoo.com")
+                self.session.get("https://fc.yahoo.com", timeout=10)
+                logging.debug("Yahoo session init: getting crumb")
                 self.crumb = self.session.get(
-                    "https://query1.finance.yahoo.com/v1/test/getcrumb"
+                    "https://query1.finance.yahoo.com/v1/test/getcrumb",
+                    timeout=10
                 ).text
                 break
             except CurlConnectionError as exc:

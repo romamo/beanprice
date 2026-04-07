@@ -15,6 +15,7 @@ import hashlib
 import re
 import sys
 import logging
+import threading
 from concurrent import futures
 from typing import Any, Dict, List, Optional, NamedTuple, Tuple
 import diskcache
@@ -78,6 +79,10 @@ _CACHE = None
 # Sentinel stored in the cache for fetches that returned no value or whose
 # result was clobbered.  Avoids repeating pointless network requests.
 _CACHE_SKIP = "__SKIP__"
+
+# A cache for source instances to avoid redundant initialization.
+_SOURCE_CACHE = {}
+_SOURCE_CACHE_LOCK = threading.Lock()
 
 # Expiration for latest prices in the cache.
 DEFAULT_EXPIRATION = datetime.timedelta(seconds=30 * 60)  # 30 mins.
@@ -679,9 +684,16 @@ def fetch_price(dprice: DatedPrice, swap_inverted: bool = False) -> Optional[dat
     """
     for psource in dprice.sources:
         try:
-            source = psource.module.Source()
+            # Use cached source instance if available to avoid redundant initialization.
+            module_name = psource.module.__name__
+            with _SOURCE_CACHE_LOCK:
+                if module_name not in _SOURCE_CACHE:
+                    logging.debug("Initializing source: %s", module_name)
+                    _SOURCE_CACHE[module_name] = psource.module.Source()
+                source = _SOURCE_CACHE[module_name]
         except AttributeError:
             continue
+
         srcprice = fetch_cached_price(source, psource.symbol, dprice.date)
         if srcprice is not None:
             break
