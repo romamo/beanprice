@@ -1,0 +1,8 @@
+global-exclude *.py[cod]
+global-include *.typed
+prune experiments
+prune tmp
+prune beanprice.egg-info
+prune beanprice2.egg-info
+prune build
+prune dist
