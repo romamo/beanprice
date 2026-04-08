@@ -12,3 +12,6 @@ build
 dist
 beanprice.egg-info
 __pycache__
+
+# Added by oss-package-engineer
+.env

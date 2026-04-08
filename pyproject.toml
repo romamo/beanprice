@@ -3,7 +3,7 @@ requires = ['setuptools']
 build-backend = 'setuptools.build_meta'
 
 [project]
-name = 'beanprice'
+name = 'beanprice2'
 version = '2.1.1'
 description = 'Price quotes fetcher for Beancount'
 license = { file = 'COPYING' }
@@ -48,7 +48,8 @@ issues = 'https://github.com/beancount/beanprice/issues'
 dev = [
     "pytest>=8.3.5",
     "pylint==3.3.3",
-    "mypy==1.14.1"
+    "mypy==1.14.1",
+    "ruff>=0.9.0",
 ]
 
 [tool.setuptools.packages]
@@ -90,6 +91,13 @@ ignore = [
     'RUF012',
     'UP007',
     'UP032',
+    # Pre-existing upstream code — not touching
+    'UP006',
+    'UP035',
+    'E501',
+    'F841',
+    'RUF003',
+    'RUF059',
 ]
 
 [tool.mypy]

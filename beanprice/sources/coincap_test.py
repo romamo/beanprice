@@ -109,9 +109,7 @@ class Source(unittest.TestCase):
             self.assertIsInstance(srcprice, source.SourcePrice)
             self.assertEqual(Decimal("60748.3135183678858890"), srcprice.price)
             self.assertEqual(
-                datetime.datetime(2021, 4, 12)
-                .replace(tzinfo=datetime.timezone.utc)
-                .date(),
+                datetime.datetime(2021, 4, 12).replace(tzinfo=datetime.timezone.utc).date(),
                 srcprice.time.date(),
             )
             self.assertEqual("USD", srcprice.quote_currency)
@@ -123,9 +121,7 @@ class Source(unittest.TestCase):
             )
             self.assertEqual(Decimal("34869.7692419204775049"), srcprice.price)
             self.assertEqual(
-                datetime.datetime(2021, 1, 6)
-                .replace(tzinfo=datetime.timezone.utc)
-                .date(),
+                datetime.datetime(2021, 1, 6).replace(tzinfo=datetime.timezone.utc).date(),
                 srcprice.time.date(),
             )
             self.assertEqual("USD", srcprice.quote_currency)
@@ -140,9 +136,7 @@ class Source(unittest.TestCase):
             self.assertEqual(len(srcprices), 8)
             self.assertEqual(Decimal("29232.6707650537687673"), srcprices[0].price)
             self.assertEqual(
-                datetime.datetime(2021, 1, 1)
-                .replace(tzinfo=datetime.timezone.utc)
-                .date(),
+                datetime.datetime(2021, 1, 1).replace(tzinfo=datetime.timezone.utc).date(),
                 srcprices[0].time.date(),
             )
             self.assertEqual("USD", srcprices[0].quote_currency)

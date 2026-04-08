@@ -60,9 +60,7 @@ def resolve_currency_id(base_currency: str) -> str:
         # Try to find currency ID by its symbol
         base_currency_id = get_currency_id(base_currency)
         if not isinstance(base_currency_id, str):
-            raise CoincapError(
-                f"Could not find currency id with ticker '{base_currency}'"
-            )
+            raise CoincapError(f"Could not find currency id with ticker '{base_currency}'")
         return base_currency_id
     else:
         return base_currency
@@ -76,9 +74,7 @@ def get_latest_price(base_currency: str) -> source.SourcePrice:
     url = f"{API_BASE_URL}{path}{resolve_currency_id(base_currency)}"
     response = requests.get(url)
     data = response.json()
-    time = datetime.fromtimestamp(data["timestamp"] / 1000.0).replace(
-        tzinfo=timezone.utc
-    )
+    time = datetime.fromtimestamp(data["timestamp"] / 1000.0).replace(tzinfo=timezone.utc)
     price = Decimal(data["data"]["priceUsd"])
     return source.SourcePrice(price, time, "USD")
 

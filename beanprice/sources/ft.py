@@ -18,14 +18,17 @@ from typing import List, Optional, Dict, Any
 
 from beanprice import source
 
+
 class FTError(ValueError):
     """An error from the FT source."""
+
 
 _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/120.0.0.0 Safari/537.36"
 )
+
 
 def get_url(url: str, params: Optional[Dict[str, Any]] = None) -> str:
     """Fetch content from a URL using urllib."""
@@ -39,9 +42,10 @@ def get_url(url: str, params: Optional[Dict[str, Any]] = None) -> str:
     req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=10) as response:
-            return response.read().decode('utf-8')
+            return response.read().decode("utf-8")
     except urllib.error.URLError as exc:
         raise FTError(f"Network error fetching {url}: {exc}") from exc
+
 
 def post_json(url: str, data: Dict[str, Any]) -> str:
     """Post JSON data to a URL using urllib."""
@@ -50,13 +54,14 @@ def post_json(url: str, data: Dict[str, Any]) -> str:
         "Content-Type": "application/json",
         "Accept": "application/json, text/plain, */*",
     }
-    body = json.dumps(data).encode('utf-8')
-    req = urllib.request.Request(url, data=body, headers=headers, method='POST')
+    body = json.dumps(data).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=10) as response:
-            return response.read().decode('utf-8')
+            return response.read().decode("utf-8")
     except urllib.error.URLError as exc:
         raise FTError(f"Network error posting to {url}: {exc}") from exc
+
 
 class Source(source.Source):
     """Financial Times price extractor."""
@@ -74,7 +79,7 @@ class Source(source.Source):
 
         # Look for xid followed by colon/equals, optional quotes, and digits
         pattern = (
-            r'(?:xid|&quot;xid&quot;)\s*[:=]\s*'
+            r"(?:xid|&quot;xid&quot;)\s*[:=]\s*"
             r'(?:["\']|&quot;)?(\d+)(?:["\']|&quot;)?'
         )
         match = re.search(pattern, content)
@@ -99,9 +104,7 @@ class Source(source.Source):
             "yFormat": "0.###",
             "timeServiceFormat": "JSON",
             "returnDateType": "ISO8601",
-            "elements": [
-                {"Type": "price", "Symbol": xid}
-            ]
+            "elements": [{"Type": "price", "Symbol": xid}],
         }
 
         response_text = post_json(url, payload)
@@ -133,10 +136,7 @@ class Source(source.Source):
                     date_time = datetime.datetime.fromisoformat(d_str).replace(
                         tzinfo=datetime.timezone.utc
                     )
-                    history.append({
-                        "time": date_time,
-                        "price": Decimal(str(closes[i]))
-                    })
+                    history.append({"time": date_time, "price": Decimal(str(closes[i]))})
                 except ValueError:
                     continue  # Skip invalid dates
         return history

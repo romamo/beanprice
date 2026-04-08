@@ -51,9 +51,7 @@ def _get_rate_EUR_to_CCY(currency, date):
     url = f"https://data-api.ecb.europa.eu/service/data/EXR/{symbol}"
     response = requests.get(url, params=params)
     if response.status_code != requests.codes.ok:
-        raise ECBRatesError(
-            f"Invalid response ({response.status_code}): {response.text}"
-        )
+        raise ECBRatesError(f"Invalid response ({response.status_code}): {response.text}")
 
     # Parse results to a DictReader iterator
     results = csv.DictReader(StringIO(response.text))
@@ -90,16 +88,12 @@ def _get_quote(ticker, date):
         base_rate_date = symbol_rate_date
         base_rate_precision = 28
     elif base != "EUR" and symbol == "EUR":
-        eur_to_base, base_rate_date, base_rate_precision = _get_rate_EUR_to_CCY(
-            base, date
-        )
+        eur_to_base, base_rate_date, base_rate_precision = _get_rate_EUR_to_CCY(base, date)
         eur_to_symbol = Decimal(1)
         symbol_rate_date = base_rate_date
         symbol_rate_precision = 28
     else:
-        eur_to_base, base_rate_date, base_rate_precision = _get_rate_EUR_to_CCY(
-            base, date
-        )
+        eur_to_base, base_rate_date, base_rate_precision = _get_rate_EUR_to_CCY(base, date)
         eur_to_symbol, symbol_rate_date, symbol_rate_precision = _get_rate_EUR_to_CCY(
             symbol, date
         )
@@ -129,7 +123,6 @@ vs. ({symbol}, {symbol_rate_date})"
 
 
 class Source(source.Source):
-
     def get_latest_price(self, ticker):
         return _get_quote(ticker, None)
 

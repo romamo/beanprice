@@ -61,9 +61,7 @@ class ECBRatesErrorFetcher(unittest.TestCase):
             )
 
     def test_historical_price(self):
-        time = datetime(2024, 12, 6, 16, 0, 0, tzinfo=tz.tzlocal()).astimezone(
-            tz.tzutc()
-        )
+        time = datetime(2024, 12, 6, 16, 0, 0, tzinfo=tz.tzlocal()).astimezone(tz.tzutc())
         contents = ECB_CSV_HIST
         with response(contents):
             srcprice = ecbrates.Source().get_historical_price("EUR-SEK", time)

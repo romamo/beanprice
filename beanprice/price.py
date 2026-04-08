@@ -334,7 +334,7 @@ def get_price_jobs_at_date(
     if not inactive:
         balance_currencies = find_prices.find_balance_currencies(entries, date)
         log_currency_list("Currencies held in assets", balance_currencies)
-        for base_quote in (currencies - balance_currencies):
+        for base_quote in currencies - balance_currencies:
             logging.debug("Ignoring %s/%s (no balance)", *base_quote)
         currencies = currencies & balance_currencies
 
@@ -435,7 +435,9 @@ def get_price_jobs_up_to_date(
                 if commodity_entry:
                     lifetimes_map[base_quote] = [(commodity_entry.date, None)]
                 else:
-                    logging.debug("Ignoring %s/%s (no declaration or transactions)", *base_quote)
+                    logging.debug(
+                        "Ignoring %s/%s (no declaration or transactions)", *base_quote
+                    )
     else:
         # Compress any lifetimes based on compress_days
         lifetimes_map = lifetimes.compress_lifetimes_days(lifetimes_map, compress_days)
@@ -448,18 +450,26 @@ def get_price_jobs_up_to_date(
         else:
             result = prices.get_latest_price(price_map, base_quote)
             if result is None or result[0] is None:
-                lifetimes_map[base_quote] = lifetimes.trim_intervals(intervals, None, date_last)
+                lifetimes_map[base_quote] = lifetimes.trim_intervals(
+                    intervals, None, date_last
+                )
             else:
                 latest_price_date = result[0]
                 date_first = latest_price_date + datetime.timedelta(days=1)
                 if date_first < date_last:
-                    logging.debug("Trimming history for %s/%s: skipping dates before %s", *base_quote, date_first)
+                    logging.debug(
+                        "Trimming history for %s/%s: skipping dates before %s",
+                        *base_quote,
+                        date_first,
+                    )
                     lifetimes_map[base_quote] = lifetimes.trim_intervals(
                         intervals, date_first, date_last
                     )
                 else:
                     # We don't need to update if we're already up to date.
-                    logging.debug("Ignoring %s/%s (up-to-date: %s)", *base_quote, latest_price_date)
+                    logging.debug(
+                        "Ignoring %s/%s (up-to-date: %s)", *base_quote, latest_price_date
+                    )
                     lifetimes_map[base_quote] = []
 
     if not default_source:
@@ -486,11 +496,11 @@ def get_price_jobs_up_to_date(
     if fill_gaps:
         # Pre-compute existing price dates per pair to avoid O(n*m) cost.
         price_dates_by_pair = {
-            pair: {p[0] for p in price_map.get(pair, [])}
-            for pair in lifetimes_map
+            pair: {p[0] for p in price_map.get(pair, [])} for pair in lifetimes_map
         }
         required_prices = [
-            key for key in required_prices
+            key
+            for key in required_prices
             if key[0] not in price_dates_by_pair.get((key[1], key[2]), set())
         ]
         logging.debug("fill_gaps: %d date(s) missing from price file", len(required_prices))
@@ -510,7 +520,9 @@ def get_price_jobs_up_to_date(
         jobs = [job for job in jobs if not is_price_cache_skip(job)]
         n_skipped = n_before - len(jobs)
         if n_skipped:
-            logging.debug("fill_gaps: %d job(s) skipped (cached as no-value/clobbered)", n_skipped)
+            logging.debug(
+                "fill_gaps: %d job(s) skipped (cached as no-value/clobbered)", n_skipped
+            )
         logging.debug("fill_gaps: %d job(s) to fetch", len(jobs))
 
     return sorted(jobs)
@@ -600,7 +612,10 @@ def fetch_cached_price(source, symbol, date):
 
             # Cache both successful results and None (no-value sentinel) so
             # future runs skip repeating pointless network requests.
-            _CACHE[key] = (timestamp_now, result_naive if result_naive is not None else _CACHE_SKIP)
+            _CACHE[key] = (
+                timestamp_now,
+                result_naive if result_naive is not None else _CACHE_SKIP,
+            )
     return result
 
 
@@ -668,7 +683,10 @@ def mark_price_cache_skip(dprice: DatedPrice):
         return
     timestamp_now = int(now().timestamp())
     for psource in dprice.sources:
-        _CACHE[_cache_key(psource.module, psource.symbol, dprice.date)] = (timestamp_now, _CACHE_SKIP)
+        _CACHE[_cache_key(psource.module, psource.symbol, dprice.date)] = (
+            timestamp_now,
+            _CACHE_SKIP,
+        )
 
 
 def fetch_price(dprice: DatedPrice, swap_inverted: bool = False) -> Optional[data.Price]:
@@ -1013,7 +1031,7 @@ def process_args() -> Tuple[
         for filename in args.sources:
             if not path.exists(filename) or not path.isfile(filename):
                 parser.error(
-                    'File does not exist: "{}"; ' "did you mean to use -e?".format(filename)
+                    'File does not exist: "{}"; did you mean to use -e?'.format(filename)
                 )
                 continue
             logging.info('Loading "%s"', filename)
@@ -1044,7 +1062,7 @@ def process_args() -> Tuple[
         for filename in args.sources:
             if not path.exists(filename) or not path.isfile(filename):
                 parser.error(
-                    'File does not exist: "{}"; ' "did you mean to use -e?".format(filename)
+                    'File does not exist: "{}"; did you mean to use -e?'.format(filename)
                 )
                 continue
             logging.info('Loading "%s"', filename)
@@ -1055,7 +1073,9 @@ def process_args() -> Tuple[
         if all_entries:
             for date in dates:
                 jobs.extend(
-                    get_price_jobs_at_date(all_entries, date, args.inactive, args.undeclared)
+                    get_price_jobs_at_date(
+                        all_entries, date, args.inactive, args.undeclared
+                    )
                 )
 
     return args, jobs, data.sorted(all_entries), dcontext
@@ -1077,8 +1097,11 @@ def main():
             for entry in entries
             if isinstance(entry, data.Price)
         }
-    output = (codecs.getwriter("utf-8")(sys.stdout.buffer)
-              if hasattr(sys.stdout, "buffer") else sys.stdout)
+    output = (
+        codecs.getwriter("utf-8")(sys.stdout.buffer)
+        if hasattr(sys.stdout, "buffer")
+        else sys.stdout
+    )
     eprinter = printer.EntryPrinter(dcontext)
     executor = futures.ThreadPoolExecutor(max_workers=args.workers)
     fetch_fn = functools.partial(fetch_price, swap_inverted=args.swap_inverted)
@@ -1093,5 +1116,6 @@ def main():
         output.write(eprinter(entry))
         output.flush()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -135,14 +135,14 @@ class Source(source.Source):
         self.session = requests.Session(impersonate="chrome120")
         self.session.headers.update(
             {
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/120.0.0.0 Safari/537.36",
-            "Sec-Ch-Ua": '"Google Chrome";v="120", '
-                         '"Chromium";v="120", ";Not A Brand";v="99"',
-            "Sec-Ch-Ua-Platform": '"Linux"',
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36",
+                "Sec-Ch-Ua": '"Google Chrome";v="120", '
+                '"Chromium";v="120", ";Not A Brand";v="99"',
+                "Sec-Ch-Ua-Platform": '"Linux"',
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
             }
         )
         # This populates the correct cookies in the session
@@ -152,15 +152,14 @@ class Source(source.Source):
                 self.session.get("https://fc.yahoo.com", timeout=10)
                 logging.debug("Yahoo session init: getting crumb")
                 self.crumb = self.session.get(
-                    "https://query1.finance.yahoo.com/v1/test/getcrumb",
-                    timeout=10
+                    "https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=10
                 ).text
                 break
             except CurlConnectionError as exc:
                 if attempt == 2:
                     raise
                 logging.warning("Yahoo session init failed (%s), retrying...", exc)
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
 
     def get_latest_price(self, ticker: str) -> Optional[source.SourcePrice]:
         """See contract in beanprice.source.Source."""

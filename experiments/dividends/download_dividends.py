@@ -39,7 +39,7 @@ def download_dividends(
     header = next(rows)
     if header != ["Date", "Dividends"]:
         raise ValueError(
-            "Error fetching dividends: " "invalid response format: {}".format(header)
+            "Error fetching dividends: invalid response format: {}".format(header)
         )
 
     dividends = []

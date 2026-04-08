@@ -72,7 +72,6 @@ def parse_tsp_csv(response: requests.models.Response) -> OrderedDict:
 
     reader = csv.DictReader(text, dialect="tsp")
 
-
     for row in reader:
         if not row["Date"]:
             continue
