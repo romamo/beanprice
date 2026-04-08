@@ -4,7 +4,7 @@ build-backend = 'setuptools.build_meta'
 
 [project]
 name = 'beanprice2'
-version = '2.1.1'
+version = "2.1.2"
 description = 'Price quotes fetcher for Beancount'
 license = { file = 'COPYING' }
 readme = 'README.md'
