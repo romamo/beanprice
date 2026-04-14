@@ -799,13 +799,18 @@ def process_args() -> Tuple[
 
     parser.add_argument(
         "--update-unpriced",
-        nargs="?",
-        const=True,
-        metavar="CURRENCY",
+        action="store_true",
         help=(
             "Fetch latest prices for currencies that have a balance but no "
-            "price or cost history. The optional argument is the quote currency to "
-            "use for these prices (defaults to USD or first operating_currency)."
+            "price or cost history."
+        ),
+    )
+
+    parser.add_argument(
+        "--unpriced-quote",
+        metavar="CURRENCY",
+        help=(
+            "The quote currency to use for unpriced prices (defaults to USD or first operating_currency)."
         ),
     )
 
@@ -999,8 +1004,8 @@ def process_args() -> Tuple[
 
     if all_entries and args.update_unpriced:
         quote = (
-            args.update_unpriced
-            if isinstance(args.update_unpriced, str)
+            args.unpriced_quote
+            if args.unpriced_quote
             else (options_map.get("operating_currency", ["USD"]) or ["USD"])[0]
         )
         unpriced_jobs = get_price_jobs_unpriced(
