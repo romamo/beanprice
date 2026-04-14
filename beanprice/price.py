@@ -1003,11 +1003,17 @@ def process_args() -> Tuple[
                 all_entries.extend(entries)
 
     if all_entries and args.update_unpriced:
-        quote = (
-            args.unpriced_quote
-            if args.unpriced_quote
-            else (options_map.get("operating_currency", ["USD"]) or ["USD"])[0]
-        )
+        if args.unpriced_quote:
+            quote = args.unpriced_quote
+        else:
+            operating_currencies = options_map.get("operating_currency", [])
+            if not operating_currencies:
+                parser.error(
+                    "--update-unpriced requires a quote currency. "
+                    "Please specify --unpriced-quote or define 'operating_currency' in your ledger."
+                )
+            quote = operating_currencies[0]
+
         unpriced_jobs = get_price_jobs_unpriced(
             all_entries, quote, args.date, args.undeclared
         )
