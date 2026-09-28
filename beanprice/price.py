@@ -599,8 +599,10 @@ def fetch_cached_price(source, symbol, date):
                     else source.get_historical_price(symbol, time)
                 )
             except ValueError as exc:
+                # Do not cache errors: they may be transient (rate limiting,
+                # empty responses), and caching them would block retries.
                 logging.error("Error fetching %s: %s", symbol, exc)
-                result = None
+                return None
 
             # Make sure the timezone is UTC and make naive before serialization.
             if result and result.time is not None:
