@@ -394,6 +394,16 @@ class TestInverted(unittest.TestCase):
         self.assertEqual(("USD", "JPY"), (entry.currency, entry.amount.currency))
         self.assertEqual(Decimal("125.00"), entry.amount.number)
 
+    def test_fetch_price__output_source(self):
+        # We need to make sure the dprice has a base and quote.
+        dprice = self.dprice._replace(
+            base="JPY",
+            quote="USD",
+            sources=[price.PriceSource(yahoo, "USDJPY", False)],
+        )
+        entry = price.fetch_price(dprice, False, True)
+        self.assertEqual("USD:yahoo/USDJPY", entry.meta["__source__"])
+
 
 class TestImportSource(unittest.TestCase):
     def test_import_source_valid(self):

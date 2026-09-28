@@ -691,13 +691,17 @@ def mark_price_cache_skip(dprice: DatedPrice):
         )
 
 
-def fetch_price(dprice: DatedPrice, swap_inverted: bool = False) -> Optional[data.Price]:
+def fetch_price(
+    dprice: DatedPrice, swap_inverted: bool = False, output_source: bool = False
+) -> Optional[data.Price]:
     """Fetch a price for the DatedPrice job.
 
     Args:
       dprice: A DatedPrice instances.
       swap_inverted: A boolean, true if we should invert currencies instead of
         rate for an inverted price source.
+      output_source: A boolean, true if we should include the source string in
+        the metadata.
     Returns:
       A Price entry corresponding to the output of the jobs processed.
 
@@ -726,6 +730,9 @@ def fetch_price(dprice: DatedPrice, swap_inverted: bool = False) -> Optional[dat
     quote = dprice.quote or srcprice.quote_currency
     price = srcprice.price
 
+    # Capture the original quote currency for source reconstruction.
+    orig_quote = quote
+
     # Invert the rate if requested.
     if psource.invert:
         if swap_inverted:
@@ -735,6 +742,26 @@ def fetch_price(dprice: DatedPrice, swap_inverted: bool = False) -> Optional[dat
 
     assert base is not None
     fileloc = data.new_metadata("<{}>".format(type(psource.module).__name__), 0)
+
+    if output_source:
+        short_module_name = psource.module.__name__
+        if short_module_name.startswith(DEFAULT_PACKAGE + "."):
+            short_module_name = short_module_name[len(DEFAULT_PACKAGE) + 1 :]
+
+        # Reconstruct the carets. Each leading '^' in the symbol was originally
+        # '^^'. If inverted, there's one more '^'.
+        num_leading_carets = 0
+        for char in psource.symbol:
+            if char == "^":
+                num_leading_carets += 1
+            else:
+                break
+        reconstructed_carets = ("^" if psource.invert else "") + ("^^" * num_leading_carets)
+        reconstructed_symbol = psource.symbol[num_leading_carets:]
+
+        fileloc["__source__"] = "{}:{}/{}".format(
+            orig_quote, short_module_name, reconstructed_carets + reconstructed_symbol
+        )
 
     # The datetime instance is required to be aware. We always convert to the
     # user's timezone before extracting the date. This means that if the market
@@ -953,6 +980,12 @@ def process_args() -> Tuple[
         ),
     )
 
+    parser.add_argument(
+        "--output-source",
+        action="store_true",
+        help=("Include the source string as a comment in the output."),
+    )
+
     # Caching options.
     cache_group = parser.add_argument_group("cache")
     cache_filename = path.join(
@@ -1106,7 +1139,9 @@ def main():
     )
     eprinter = printer.EntryPrinter(dcontext)
     executor = futures.ThreadPoolExecutor(max_workers=args.workers)
-    fetch_fn = functools.partial(fetch_price, swap_inverted=args.swap_inverted)
+    fetch_fn = functools.partial(
+        fetch_price, swap_inverted=args.swap_inverted, output_source=args.output_source
+    )
 
     for job, entry in zip(jobs, executor.map(fetch_fn, jobs)):
         if entry is None:
@@ -1115,7 +1150,11 @@ def main():
             logging.info("Ignored to avoid clobber: %s %s", entry.date, entry.currency)
             mark_price_cache_skip(job)
             continue
-        output.write(eprinter(entry))
+        source_str = entry.meta.pop("__source__", None)
+        result = eprinter(entry)
+        if source_str:
+            result = result.rstrip("\n") + " ; " + source_str + "\n"
+        output.write(result)
         output.flush()
 
 
