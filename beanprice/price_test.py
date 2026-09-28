@@ -195,6 +195,57 @@ class TestCache(unittest.TestCase):
             if path.exists(tmpdir):
                 shutil.rmtree(tmpdir)
 
+    def test_fetch_cached_price__error_not_cached(self):
+        tmpdir = tempfile.mkdtemp()
+        tmpfile = path.join(tmpdir, "prices.cache")
+        try:
+            price.setup_cache(tmpfile, False)
+
+            srcprice = SourcePrice(
+                Decimal("1.723"), datetime.datetime.now(tz.tzutc()), "USD"
+            )
+            source = mock.MagicMock()
+            source.get_historical_price.side_effect = [
+                ValueError("Expecting value: line 1 column 1 (char 0)"),
+                srcprice,
+            ]
+            source.__file__ = "<module>"
+
+            # Transient error: nothing is cached.
+            day = datetime.date(2006, 1, 2)
+            result = price.fetch_cached_price(source, "HOOL", day)
+            self.assertIsNone(result)
+            self.assertEqual(0, len(price._CACHE))
+
+            # Retry reaches the source.
+            result = price.fetch_cached_price(source, "HOOL", day)
+            self.assertEqual(2, source.get_historical_price.call_count)
+            self.assertEqual(srcprice, result)
+        finally:
+            price.reset_cache()
+            if path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
+
+    def test_fetch_cached_price__none_cached_as_skip(self):
+        tmpdir = tempfile.mkdtemp()
+        tmpfile = path.join(tmpdir, "prices.cache")
+        try:
+            price.setup_cache(tmpfile, False)
+
+            source = mock.MagicMock()
+            source.get_historical_price.return_value = None
+            source.__file__ = "<module>"
+
+            # Definitive no value: cached as skip.
+            day = datetime.date(2006, 1, 2)
+            self.assertIsNone(price.fetch_cached_price(source, "HOOL", day))
+            self.assertIsNone(price.fetch_cached_price(source, "HOOL", day))
+            self.assertEqual(1, source.get_historical_price.call_count)
+        finally:
+            price.reset_cache()
+            if path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
+
 
 class TestProcessArguments(unittest.TestCase):
     def test_filename_not_exists(self):
