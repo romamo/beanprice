@@ -87,6 +87,15 @@ _SOURCE_CACHE_LOCK = threading.Lock()
 # Expiration for latest prices in the cache.
 DEFAULT_EXPIRATION = datetime.timedelta(seconds=30 * 60)  # 30 mins.
 
+# A date at least this far in the past is settled: its price, or the lack of one,
+# no longer changes, so its cache entries never expire.
+SETTLED_AFTER = datetime.timedelta(days=7)
+
+# A settled date whose fetch errored on this many separate days is taken to have
+# no price (a market holiday, a symbol without history) and is skipped from then
+# on. One error alone may be transient, so it is never cached as a skip.
+SETTLED_FAILURE_DAYS = 2
+
 
 # The default source parser is back.
 DEFAULT_SOURCE = "beanprice.sources.yahoo"
@@ -568,12 +577,17 @@ def fetch_cached_price(source, symbol, date):
     else:
         # The cache is enabled and we have to compute the current/latest price.
         # Try to fetch from the cache but miss if the price is too old.
-        key = _cache_key(source, symbol, date)
-        timestamp_now = int(now().timestamp())
+        key = _cache_key(type(source).__module__, symbol, date)
+        moment = now()
+        timestamp_now = int(moment.timestamp())
+        settled = is_settled(date, moment.date())
         try:
             timestamp_created, result_naive = _CACHE[key]
 
-            if (timestamp_now - timestamp_created) > _CACHE.expiration.total_seconds():
+            expired = (
+                timestamp_now - timestamp_created
+            ) > _CACHE.expiration.total_seconds()
+            if expired and not settled:
                 raise KeyError
 
             # Sentinel: a previous fetch returned no value or was clobbered.
@@ -599,10 +613,14 @@ def fetch_cached_price(source, symbol, date):
                     else source.get_historical_price(symbol, time)
                 )
             except ValueError as exc:
-                # Do not cache errors: they may be transient (rate limiting,
-                # empty responses), and caching them would block retries.
+                # Do not cache errors as a skip: they may be transient (rate
+                # limiting, empty responses). A settled date that errors again
+                # on another day has no price, and is skipped from then on.
                 logging.error("Error fetching %s: %s", symbol, exc)
+                if settled:
+                    _record_settled_failure(key, moment.date(), timestamp_now)
                 return None
+            _CACHE.pop(_failures_key(key), None)
 
             # Make sure the timezone is UTC and make naive before serialization.
             if result and result.time is not None:
@@ -659,10 +677,31 @@ def reset_cache():
     _CACHE = None
 
 
-def _cache_key(source_module, symbol, date) -> str:
+def _cache_key(module_name: str, symbol, date) -> str:
+    """Key by the source's module name: a Source instance and its module share it."""
     md5 = hashlib.md5()
-    md5.update(str((type(source_module).__module__, symbol, date)).encode("utf-8"))
+    md5.update(str((module_name, symbol, date)).encode("utf-8"))
     return md5.hexdigest()
+
+
+def is_settled(date: Optional[datetime.date], today: datetime.date) -> bool:
+    """Return True if a price for this date can no longer change."""
+    return date is not None and date <= today - SETTLED_AFTER
+
+
+def _failures_key(key: str) -> str:
+    return key + ":failures"
+
+
+def _record_settled_failure(key: str, today: datetime.date, timestamp_now: int):
+    """Count a failed fetch of a settled date; skip it once it failed on enough days."""
+    assert _CACHE is not None
+    days = _CACHE.get(_failures_key(key), frozenset()) | {today}
+    if len(days) >= SETTLED_FAILURE_DAYS:
+        _CACHE[key] = (timestamp_now, _CACHE_SKIP)
+        _CACHE.pop(_failures_key(key), None)
+    else:
+        _CACHE[_failures_key(key)] = frozenset(days)
 
 
 def is_price_cache_skip(dprice: DatedPrice) -> bool:
@@ -670,7 +709,9 @@ def is_price_cache_skip(dprice: DatedPrice) -> bool:
     if _CACHE is None:
         return False
     for psource in dprice.sources:
-        cached = _CACHE.get(_cache_key(psource.module, psource.symbol, dprice.date))
+        cached = _CACHE.get(
+            _cache_key(psource.module.__name__, psource.symbol, dprice.date)
+        )
         if cached is None or cached[1] != _CACHE_SKIP:
             return False
     return bool(dprice.sources)
@@ -685,7 +726,7 @@ def mark_price_cache_skip(dprice: DatedPrice):
         return
     timestamp_now = int(now().timestamp())
     for psource in dprice.sources:
-        _CACHE[_cache_key(psource.module, psource.symbol, dprice.date)] = (
+        _CACHE[_cache_key(psource.module.__name__, psource.symbol, dprice.date)] = (
             timestamp_now,
             _CACHE_SKIP,
         )

@@ -211,16 +211,19 @@ class TestCache(unittest.TestCase):
             ]
             source.__file__ = "<module>"
 
-            # Transient error: nothing is cached.
+            # Transient error: not cached as a skip.
             day = datetime.date(2006, 1, 2)
             result = price.fetch_cached_price(source, "HOOL", day)
             self.assertIsNone(result)
-            self.assertEqual(0, len(price._CACHE))
+            self.assertNotIn(
+                price._cache_key(type(source).__module__, "HOOL", day), price._CACHE
+            )
 
-            # Retry reaches the source.
+            # Retry reaches the source, and its price replaces the failure count.
             result = price.fetch_cached_price(source, "HOOL", day)
             self.assertEqual(2, source.get_historical_price.call_count)
             self.assertEqual(srcprice, result)
+            self.assertEqual(1, len(price._CACHE))
         finally:
             price.reset_cache()
             if path.exists(tmpdir):
@@ -241,6 +244,107 @@ class TestCache(unittest.TestCase):
             self.assertIsNone(price.fetch_cached_price(source, "HOOL", day))
             self.assertIsNone(price.fetch_cached_price(source, "HOOL", day))
             self.assertEqual(1, source.get_historical_price.call_count)
+        finally:
+            price.reset_cache()
+            if path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
+
+    def test_fetch_cached_price__settled_skip_does_not_expire(self):
+        tmpdir = tempfile.mkdtemp()
+        tmpfile = path.join(tmpdir, "prices.cache")
+        try:
+            price.setup_cache(tmpfile, False)
+
+            source = mock.MagicMock()
+            source.__file__ = "<module>"
+
+            # A skip written long ago for a settled date still holds.
+            day = datetime.date(2006, 1, 2)
+            price._CACHE[price._cache_key(type(source).__module__, "HOOL", day)] = (
+                0,
+                price._CACHE_SKIP,
+            )
+            self.assertIsNone(price.fetch_cached_price(source, "HOOL", day))
+            self.assertFalse(source.get_historical_price.called)
+        finally:
+            price.reset_cache()
+            if path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
+
+    def test_fetch_cached_price__settled_error_on_two_days_skips(self):
+        tmpdir = tempfile.mkdtemp()
+        tmpfile = path.join(tmpdir, "prices.cache")
+        try:
+            price.setup_cache(tmpfile, False)
+
+            source = mock.MagicMock()
+            source.get_historical_price.side_effect = ValueError("no data")
+            source.__file__ = "<module>"
+            day = datetime.date(2006, 1, 2)
+            key = price._cache_key(type(source).__module__, "HOOL", day)
+            today = price.now().date()
+
+            # Errors on the same day count once: no skip yet.
+            price.fetch_cached_price(source, "HOOL", day)
+            price.fetch_cached_price(source, "HOOL", day)
+            self.assertNotIn(key, price._CACHE)
+
+            # An error on another day makes it a skip.
+            price._CACHE[price._failures_key(key)] = frozenset(
+                {today - datetime.timedelta(days=1)}
+            )
+            price.fetch_cached_price(source, "HOOL", day)
+            self.assertEqual(price._CACHE_SKIP, price._CACHE[key][1])
+            source.get_historical_price.reset_mock()
+            self.assertIsNone(price.fetch_cached_price(source, "HOOL", day))
+            self.assertFalse(source.get_historical_price.called)
+        finally:
+            price.reset_cache()
+            if path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
+
+    def test_fetch_cached_price__recent_error_never_skips(self):
+        tmpdir = tempfile.mkdtemp()
+        tmpfile = path.join(tmpdir, "prices.cache")
+        try:
+            price.setup_cache(tmpfile, False)
+
+            source = mock.MagicMock()
+            source.get_historical_price.side_effect = ValueError("no data")
+            source.__file__ = "<module>"
+
+            # A date inside the settling window is retried on every run.
+            day = datetime.date.today() - datetime.timedelta(days=1)
+            price.fetch_cached_price(source, "HOOL", day)
+            price.fetch_cached_price(source, "HOOL", day)
+            self.assertEqual(2, source.get_historical_price.call_count)
+            self.assertEqual(0, len(price._CACHE))
+        finally:
+            price.reset_cache()
+            if path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
+
+    def test_is_price_cache_skip__matches_skip_written_by_fetch(self):
+        tmpdir = tempfile.mkdtemp()
+        tmpfile = path.join(tmpdir, "prices.cache")
+        try:
+            price.setup_cache(tmpfile, False)
+
+            # A job names the source module; the fetch caches under its Source instance.
+            module = types.ModuleType("fake_source")
+
+            class Source:
+                def get_historical_price(self, ticker, time):
+                    return None
+
+            Source.__module__ = module.__name__
+            module.Source = Source
+
+            day = datetime.date(2006, 1, 2)
+            job = price.DatedPrice("HOOL", "USD", day, [PS(module, "HOOL", False)])
+            self.assertFalse(price.is_price_cache_skip(job))
+            self.assertIsNone(price.fetch_cached_price(Source(), "HOOL", day))
+            self.assertTrue(price.is_price_cache_skip(job))
         finally:
             price.reset_cache()
             if path.exists(tmpdir):
